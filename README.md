@@ -96,7 +96,7 @@ For exemple:
   
 You want accept .gif images.
 The value returned by (mime::Image_GIF).type_() is **"image"** and the value returned by (mime::Image_GIF).subtype() is **"png"**.
-The filetype generated is therefore: **"imagegif**.
+The filetype generated is therefore: **"imagegif"**.
 So, for accept .gif images, you just have to add "ImageGIF" to the FileType structure:
 ```rust
 #[derive(Debug, Deserialize)]
