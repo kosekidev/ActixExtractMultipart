@@ -31,11 +31,12 @@ pub struct FileInfos {
     pub data: FileData,
 }
 
-pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(FileInfos) -> Option<String>) -> Option<T>
+pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(FileInfos) -> Option<String>) -> Result<T, Vec<String>>
     // With String: Filename, usize: File weight and the Vec the file data
     where T: serde::de::DeserializeOwned
 {
     let mut params = Map::new();
+    let mut files_path_uploaded: Vec<String> = Vec::new();
 
     'mainWhile: while let Ok(Some(mut field)) = payload.try_next().await {
         if let Some(content_disposition) = field.content_disposition() {
@@ -88,7 +89,10 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(F
                             weight: size,
                             data
                         }) {
-                        Some(image_path) => sub_params.insert("path".to_owned(), Value::String(image_path.to_string())),
+                        Some(image_path) => {
+                            files_path_uploaded.push(image_path.clone());
+                            sub_params.insert("path".to_owned(), Value::String(image_path.to_string()))
+                        },
                         None => sub_params.insert("path".to_owned(), Value::Null),
                     };
 
@@ -116,7 +120,7 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(F
     }
 
     match serde_json::from_value::<T>(Value::Object(params)) {
-        Ok(final_struct) => Some(final_struct),
-        Err(_) => None
+        Ok(final_struct) => Ok(final_struct),
+        Err(_) => Err(files_path_uploaded)
     }
 }
