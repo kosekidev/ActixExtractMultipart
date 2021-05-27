@@ -60,6 +60,10 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(F
             
                     size = (size as f32 / 1.024) as usize; // Convert to real weight
 
+                    if size == 0 {
+                        continue 'mainWhile;
+                    }
+
                     let main_type = field.content_type()
                                          .type_()
                                          .to_string()
