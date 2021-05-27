@@ -40,11 +40,10 @@ struct Exemple {
     file_param: File
 }
 
-fn file_manipulation(filename: &str, file_weight: usize, file_data: FileData) -> Option<String> {
+fn file_manipulation(file_informations: FileInfos) -> Option<String> {
     // Here, we can do some stuff with the file data
-    // FileData type is an alias of Vec<actix_web::web::Bytes>
     
-    let file_data_compressed = compression_function(file_data);
+    let file_data_compressed = compression_function(file_informations.data);
     let file_path: String = "directory/directory2/".to_owned();
     
     match saving_file_function(file_path, file_data_compressed) {
@@ -90,7 +89,7 @@ FileType was made width mime::Mime crate:
 ```rust
 let file_type = format!("{}{}", field.content_type().type_(), field.content_type().subtype());
 ```
-We just concat the (mime::Mime).type_() return and the (mime::Mime).subtype() value to make our type.
+We just concat the (mime::Mime).type_() return and the (mime::Mime).subtype() value to make our type. This characters was removed to the file type: ".", "-", "_".
   
 For exemple:
   
