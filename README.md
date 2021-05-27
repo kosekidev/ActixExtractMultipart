@@ -6,11 +6,17 @@ First, the actix multipart and a function.
 The function is called for each file received. You can therefore compress, modify and/or save your files as well as cancel the processing thereof in the event of violation of some of your constraints (file size, wrong file type etc ...).
 Theses functions need to have this signature:
 ```rust
-Fn(&str, usize, FileData) -> Option<String>
+Fn(FileInfos) -> Option<String>
 ```
-The first parameter(&str) is the name of the file.
-The second parameter(usize) is the file weight.
-The third parameter(FileData) is the file data.
+```rust
+#[derive(Debug)]
+pub struct FileInfos {
+    pub file_type: Option<FileType>,
+    pub filename: String,
+    pub weight: usize,
+    pub data: FileData,
+}
+```
 
 FileData is an alias to vec actixweb bytes: (Defined in multipart.rs file)
 ```rust
