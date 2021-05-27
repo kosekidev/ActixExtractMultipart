@@ -12,6 +12,7 @@ pub enum FileType {
     ImagePNG,
     ImageJPEG,
     ApplicationPDF,
+    ApplicationVNDOasisOpendocumentText
 }
 
 #[derive(Debug, Deserialize)]
@@ -22,7 +23,15 @@ pub struct File {
     pub path: Option<String>,
 }
 
-pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(&str, usize, FileData) -> Option<String>) -> Option<T>
+#[derive(Debug)]
+pub struct FileInfos {
+    pub file_type: Option<FileType>,
+    pub filename: String,
+    pub weight: usize,
+    pub data: FileData,
+}
+
+pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(FileInfos) -> Option<String>) -> Option<T>
     // With String: Filename, usize: File weight and the Vec the file data
     where T: serde::de::DeserializeOwned
 {
@@ -50,13 +59,35 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(&
             
                     size = (size as f32 / 1.024) as usize; // Convert to real weight
 
-                    let file_type_str: String = format!("{}{}", field.content_type().type_(), field.content_type().subtype());
+                    let main_type = field.content_type()
+                                         .type_()
+                                         .to_string()
+                                         .replace(".", "")
+                                         .replace("_", "")
+                                         .replace("-", "");
+                    let sub_type = field.content_type()
+                                        .subtype()
+                                        .to_string()
+                                        .replace(".", "")
+                                        .replace("_", "")
+                                        .replace("-", "");
+                    let file_type_str: String = format!("{}{}", main_type, sub_type);
                     let mut sub_params = Map::new();
-                    sub_params.insert("file_type".to_owned(), Value::String(file_type_str));
+                    sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
                     sub_params.insert("filename".to_owned(), Value::String(file_name.to_string()));
                     sub_params.insert("weight".to_owned(), Value::Number(Number::from(size)));
 
-                    match images_func(file_name, size, data) {
+                    let file_type: Option<FileType> = match serde_json::from_value::<FileType>(Value::String(file_type_str)) {
+                        Ok(final_type) => Some(final_type),
+                        Err(_) => None
+                    };
+
+                    match images_func(FileInfos {
+                            file_type: file_type,
+                            filename: file_name.to_owned(),
+                            weight: size,
+                            data
+                        }) {
                         Some(image_path) => sub_params.insert("path".to_owned(), Value::String(image_path.to_string())),
                         None => sub_params.insert("path".to_owned(), Value::Null),
                     };
