@@ -1,0 +1,30 @@
+[package]
+name = "actix_extract_multipart"
+version = "0.1.0"
+authors = ["Bréhaut Vincent <vincent.brehaut@gmail.com>"]
+edition = "2018"
+license-file = "LICENSE.txt"
+description = "ActixExtractMultipart is a library for parse actix_multipart into a structure that you defined"
+repository = "https://github.com/KosekiDev/ActixExtractMultipart"
+readme = "README.md"
+keywords = ["actix", "multipart", "web"]
+
+[lib]
+name = "actix_extract_multipart"
+path = "src/lib.rs"
+
+[dependencies]
+actix-web = "3.3.2"
+actix-multipart = "0.3.0"
+serde = { version = "1.0.125", features = ["derive"] }
+serde_json = "1.0.64"
+futures = "0.3.14"
+mime = "0.3.16"
+
+[dev-dependencies]
+actix-rt = "2.2"
+actix-http = "3.0.0-beta.6"
+tokio = { version = "1", features = ["sync"] }
+tokio-stream = "0.1"
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
