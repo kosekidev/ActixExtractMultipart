@@ -4,7 +4,7 @@ use serde::{Deserialize};
 use serde_json::{Value, Number, Map};
 use std::str;
 
-pub type FileData = Vec<actix_web::web::Bytes>;
+pub type FileData = Vec<u8>;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -20,36 +20,28 @@ pub struct File {
     pub file_type: FileType,
     pub filename: String,
     pub weight: usize,
-    pub path: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct FileInfos {
-    pub file_type: Option<FileType>,
-    pub filename: String,
-    pub weight: usize,
     pub data: FileData,
 }
 
-pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(FileInfos) -> Option<String>) -> Result<T, Vec<String>>
-    // With String: Filename, usize: File weight and the Vec the file data
+pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
     where T: serde::de::DeserializeOwned
 {
     let mut params = Map::new();
-    let mut files_path_uploaded: Vec<String> = Vec::new();
 
     'mainWhile: while let Ok(Some(mut field)) = payload.try_next().await {
         if let Some(content_disposition) = field.content_disposition() {
             if let Some(field_name) = content_disposition.get_name() {
                 if let Some(file_name) = content_disposition.get_filename() {
-                    let mut data: FileData = Vec::new();
-                    let mut size: usize = 0;
+                    let mut data: Vec<Value> = Vec::new();
 
                     while let Some(chunk) = field.next().await {
                         match chunk {
                             Ok(d) => {
-                                size += d.len();
-                                data.push(d);
+                                let chunk_data: FileData = d.to_vec();
+                                data.reserve_exact(chunk_data.len());
+                                for byte in chunk_data {
+                                    data.push(Value::Number(Number::from(byte)));
+                                }
                             },
                             Err(_) => {
                                 params.insert(field_name.to_owned(), Value::Null);
@@ -58,7 +50,7 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(F
                         }
                     }
             
-                    size = (size as f32 / 1.024) as usize; // Convert to real weight
+                    let size: usize = (data.len() as f32 / 1.024) as usize; // Convert to real weight
 
                     if size == 0 {
                         continue 'mainWhile;
@@ -81,25 +73,7 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(F
                     sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
                     sub_params.insert("filename".to_owned(), Value::String(file_name.to_string()));
                     sub_params.insert("weight".to_owned(), Value::Number(Number::from(size)));
-
-                    let file_type: Option<FileType> = match serde_json::from_value::<FileType>(Value::String(file_type_str)) {
-                        Ok(final_type) => Some(final_type),
-                        Err(_) => None
-                    };
-
-                    match images_func(FileInfos {
-                            file_type: file_type,
-                            filename: file_name.to_owned(),
-                            weight: size,
-                            data
-                        }) {
-                        Some(image_path) => {
-                            files_path_uploaded.push(image_path.clone());
-                            sub_params.insert("path".to_owned(), Value::String(image_path.to_string()))
-                        },
-                        None => sub_params.insert("path".to_owned(), Value::Null),
-                    };
-
+                    sub_params.insert("data".to_owned(), Value::Array(data));
                     params.insert(field_name.to_owned(), Value::Object(sub_params));
                 } else {
                     if let Some(value) = field.next().await {
@@ -122,9 +96,9 @@ pub async fn extract_multipart<T>(mut payload: Multipart, images_func: &dyn Fn(F
             }
         }
     }
-
+    
     match serde_json::from_value::<T>(Value::Object(params)) {
         Ok(final_struct) => Ok(final_struct),
-        Err(_) => Err(files_path_uploaded)
+        Err(_) => Err(())
     }
 }

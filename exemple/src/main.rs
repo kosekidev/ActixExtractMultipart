@@ -12,32 +12,18 @@ struct Exemple {
     file_param: Option<File>
 }
 
-fn saving_file_function(file_path: &String, _file_data: FileData) -> Result<(), ()> {
+fn saving_file_function(file: File) -> Result<(), ()> {
     // Do some stuff here
-    println!("Saving file \"{}\" successfully", file_path);
+    println!("Saving file \"{}\" successfully", file.filename);
 
     Ok(())
 }
 
-fn file_manipulation(file_informations: FileInfos) -> Option<String> {    
-    let file_path: String = format!("directory/directory2/{}", &file_informations.filename);
-    
-    match saving_file_function(&file_path, file_informations.data) {
-        Ok(_) => Some(file_path), // Saving success, we return the file path
-        Err(_) => None // Saving failed, we return None value
-    }
-}
-
 #[post("/exemple")]
 async fn index(payload: Multipart) -> HttpResponse {
-    let exemple_structure = match extract_multipart::<Exemple>(payload, &file_manipulation).await {
+    let exemple_structure = match extract_multipart::<Exemple>(payload).await {
         Ok(data) => data,
-        Err(files_uploaded) => {
-            for file_path in files_uploaded {
-                println!("Removing file: {}", file_path);
-            }
-            return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
-        }
+        Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
     };
     
     println!("Value of string_param: {}", exemple_structure.string_param);
@@ -46,6 +32,13 @@ async fn index(payload: Multipart) -> HttpResponse {
         Some(_) => "Yes",
         None => "No"
     });
+
+    if let Some(file) = exemple_structure.file_param {
+        match saving_file_function(file) {
+            Ok(_) => println!("File saved!"),
+            Err(_) => println!("An error occured while file saving")
+        }
+    }
 
     HttpResponse::Ok().json("Done")
 }
