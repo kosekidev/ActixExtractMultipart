@@ -1,14 +1,6 @@
 # ActixExtractMultipart
 Functions and structures to handle actix multipart more easily. You can convert the multipart into a struct.
 
-###### Dependences:
-```
-actix-web = "3.3.2"
-actix-multipart = "0.3.0"
-serde = { version = "1.0.125", features = ["derive"] }
-serde_json = "1.0.64"
-futures = "0.3.14"
-```
 To use this function, you need to create a structure with "Deserialize" trait, like this:
 ```rust
 #[derive(Deserialize)]
@@ -44,8 +36,7 @@ use actix_web::{post, App, HttpResponse, HttpServer};
 use serde::{Deserialize};
 use actix_multipart::Multipart;
 
-mod multipart;
-use crate::multipart::*;
+use actix_extract_multipart::*;
 
 #[derive(Deserialize)]
 struct Exemple {
@@ -115,29 +106,20 @@ The function extract_multipart will return Err(_) value also if the file type wa
 pub enum FileType {
     ImagePNG,
     ImageJPEG,
-    ApplicationPDF,
-}
-```
-You can add types in this enumeration if needed.
-FileType was made with mime::Mime crate:
-```rust
-let file_type = format!("{}{}", field.content_type().type_(), field.content_type().subtype());
-```
-We just concat the (mime::Mime).type_() return and the (mime::Mime).subtype() value to make our type. This characters was removed to the file type: ".", "-", "_".
-  
-For exemple:
-  
-You want accept .gif images.
-The value returned by (mime::Image_GIF).type_() is **"image"** and the value returned by (mime::Image_GIF).subtype() is **"png"**.
-The filetype generated is therefore: **"imagegif"**.
-So, for accept .gif images, you just have to add "ImageGIF" to the FileType structure:
-```rust
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FileType {
-    ImagePNG,
-    ImageJPEG,
     ImageGIF,
+    ImageWEBP,
     ApplicationPDF,
+    ApplicationJSON,
+    ApplicationXML,
+    TextCSV,
+    TextPlain,
+    #[serde(alias = "applicationvndoasisopendocumenttext")]
+    ODT,
+    #[serde(alias = "applicationvndoasisopendocumentspreadsheet")]
+    ODS,
+    #[serde(alias = "applicationvndmsexcel")]
+    XLS,
+    #[serde(alias = "applicationvndopenxmlformatsofficedocumentspreadsheetmlsheet")]
+    XLSX,
 }
 ```
