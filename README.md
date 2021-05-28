@@ -1,77 +1,15 @@
 # ActixExtractMultipart
-Functions and structures to handle actix multipart more easily. You can convert the multipart into a struct and do some stuff on image data(Compression, saving etc...)
+Functions and structures to handle actix multipart more easily. You can convert the multipart into a struct.
 
-The function extract_multipart have 2 argument:
-First, the actix multipart and a function.
-The function is called for each file received. You can therefore compress, modify and/or save your files as well as cancel the processing thereof in the event of violation of some of your constraints (file size, wrong file type etc ...).
-Theses functions need to have this signature:
-```rust
-Fn(FileInfos) -> Option<String>
+###### Dependences:
 ```
-```rust
-#[derive(Debug)]
-pub struct FileInfos {
-    pub file_type: Option<FileType>,
-    pub filename: String,
-    pub weight: usize,
-    pub data: FileData,
-}
+actix-web = "3.3.2"
+actix-multipart = "0.3.0"
+serde = { version = "1.0.125", features = ["derive"] }
+serde_json = "1.0.64"
+futures = "0.3.14"
 ```
-
-FileData is an alias to vec actixweb bytes: (Defined in multipart.rs file)
-```rust
-pub type FileData = Vec<actix_web::web::Bytes>;
-```
-Function must be return the file path(Option<String>), needed by File structure. If you return None value, the path parameter of File structure be setting on None.
-```rust
-#[derive(Debug, Deserialize)]
-pub struct File {
-    pub file_type: FileType,
-    pub filename: String,
-    pub weight: usize,
-    pub path: Option<String>,
-}
-```
-
-## Example of use
-```rust
-use serde::{Deserialize};
-use actix_multipart::Multipart; // Actix multipart
-use crate::multipart::; // The multipart.rs file
-
-#[derive(Deserialize)]
-struct Exemple {
-    string_param: String,
-    optional_u_param: Option<u32>,
-    file_param: File
-}
-
-fn file_manipulation(file_informations: FileInfos) -> Option<String> {
-    // Here, we can do some stuff with the file data
-    
-    let file_data_compressed = compression_function(file_informations.data);
-    let file_path: String = "directory/directory2/".to_owned();
-    
-    match saving_file_function(file_path, file_data_compressed) {
-      Ok(_) => Some(file_path), // Saving success, we return the file path
-      Err(_) => None // Saving failed, we return None value
-    }
-}
-
-#[post("/exemple")]
-async fn exemple_func(payload: Multipart) -> HttpResponse {
-    let exemple_structure = match extract_multipart::<Exemple>(payload, &file_manipulation).await {
-        Some(data) => data,
-        None => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
-    };
-    
-    println!("Value of string_param: {}", exemple_structure.string_param);
-
-    HttpResponse::Ok().json("Done")
-}
-```
-In this exemple, if you dont have received a file, extract_multipart will return None value, because data don't correspond to the data struct Exemple.
-If the File is optional, you can simply set the type as Option<File> like this:
+To use this function, you need to create a structure with "Deserialize" trait, like this:
 ```rust
 #[derive(Deserialize)]
 struct Exemple {
@@ -80,7 +18,97 @@ struct Exemple {
     file_param: Option<File>
 }
 ```
-The function extract_multipart will return None value also if the file type was not in FileType enumeration.
+File is a structure for any files:
+```rust
+#[derive(Debug, Deserialize)]
+pub struct File {
+    pub file_type: FileType,
+    pub filename: String,
+    pub weight: usize,
+    pub data: FileData,
+}
+```
+FileData is an alias to Vec<u8> bytes: (Defined in multipart.rs file)
+```rust
+pub type FileData = Vec<u8>;
+```
+Then, we can call the extract_multipart function. It takes in parameter the actix_multipart::Multipart and precise the structure output like this:
+    
+```rust
+async fn extract_multipart::<StructureType: T>(actix_mutlipart::Multipart) -> Result<T, _>
+```
+
+## Example of use
+```rust
+use actix_web::{post, App, HttpResponse, HttpServer};
+use serde::{Deserialize};
+use actix_multipart::Multipart;
+
+mod multipart;
+use crate::multipart::*;
+
+#[derive(Deserialize)]
+struct Exemple {
+    string_param: String,
+    optional_u_param: Option<u32>,
+    file_param: File
+}
+
+fn saving_file_function(file: File) -> Result<(), ()> {
+    // Do some stuff here
+    println!("Saving file \"{}\" successfully", file.filename);
+
+    Ok(())
+}
+
+#[post("/exemple")]
+async fn index(payload: Multipart) -> HttpResponse {
+    let exemple_structure = match extract_multipart::<Exemple>(payload).await {
+        Ok(data) => data,
+        Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
+    };
+    
+    println!("Value of string_param: {}", exemple_structure.string_param);
+    println!("Value of optional_u_param: {:?}", exemple_structure.optional_u_param);
+    println!("Having file? {}", match exemple_structure.file_param {
+        Some(_) => "Yes",
+        None => "No"
+    });
+
+    if let Some(file) = exemple_structure.file_param {
+        match saving_file_function(file) {
+            Ok(_) => println!("File saved!"),
+            Err(_) => println!("An error occured while file saving")
+        }
+    }
+
+    HttpResponse::Ok().json("Done")
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    println!("Server run at http://127.0.0.1:8080");
+
+    HttpServer::new(move || {
+        App::new()
+            .service(index)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
+}
+```
+In this exemple, if you dont have received a file, extract_multipart will return an Err(_), because data don't correspond to the data struct "Exemple".
+If the File is optional, you can simply set the type as Option<File>, like this:
+```rust
+#[derive(Deserialize)]
+struct Exemple {
+    string_param: String,
+    optional_u_param: Option<u32>,
+    file_param: Option<File>
+}
+```
+The function extract_multipart will return Err(_) value also if the file type was not in FileType enumeration.
 ```
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -91,7 +119,7 @@ pub enum FileType {
 }
 ```
 You can add types in this enumeration if needed.
-FileType was made width mime::Mime crate:
+FileType was made with mime::Mime crate:
 ```rust
 let file_type = format!("{}{}", field.content_type().type_(), field.content_type().subtype());
 ```
