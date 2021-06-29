@@ -4,7 +4,7 @@ Functions and structures to handle actix multipart more easily. You can convert 
 To use this function, you need to create a structure with "Deserialize" trait, like this:
 ```rust
 #[derive(Deserialize)]
-struct Exemple {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
     file_param: Option<File>
@@ -20,7 +20,7 @@ pub struct File {
     pub data: FileData,
 }
 ```
-FileData is an alias to Vec<u8> bytes: (Defined in multipart.rs file)
+FileData is an alias to Vec<u8> bytes:
 ```rust
 pub type FileData = Vec<u8>;
 ```
@@ -39,7 +39,7 @@ use actix_multipart::Multipart;
 use actix_extract_multipart::*;
 
 #[derive(Deserialize)]
-struct Exemple {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
     file_param: File
@@ -52,21 +52,21 @@ fn saving_file_function(file: File) -> Result<(), ()> {
     Ok(())
 }
 
-#[post("/exemple")]
+#[post("/Example")]
 async fn index(payload: Multipart) -> HttpResponse {
-    let exemple_structure = match extract_multipart::<Exemple>(payload).await {
+    let Example_structure = match extract_multipart::<Example>(payload).await {
         Ok(data) => data,
         Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
     };
     
-    println!("Value of string_param: {}", exemple_structure.string_param);
-    println!("Value of optional_u_param: {:?}", exemple_structure.optional_u_param);
-    println!("Having file? {}", match exemple_structure.file_param {
+    println!("Value of string_param: {}", Example_structure.string_param);
+    println!("Value of optional_u_param: {:?}", Example_structure.optional_u_param);
+    println!("Having file? {}", match Example_structure.file_param {
         Some(_) => "Yes",
         None => "No"
     });
 
-    if let Some(file) = exemple_structure.file_param {
+    if let Some(file) = Example_structure.file_param {
         match saving_file_function(file) {
             Ok(_) => println!("File saved!"),
             Err(_) => println!("An error occured while file saving")
@@ -89,11 +89,11 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 ```
-In this exemple, if you dont have received a file, extract_multipart will return an Err(_), because data don't correspond to the data struct "Exemple".
+In this Example, if you dont have received a file, extract_multipart will return an Err(_), because data don't correspond to the data struct "Example".
 If the File is optional, you can simply set the type as Option<File>, like this:
 ```rust
 #[derive(Deserialize)]
-struct Exemple {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
     file_param: Option<File>
