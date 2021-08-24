@@ -32,8 +32,8 @@ pub enum FileType {
 
 #[derive(Debug, Deserialize)]
 pub struct File {
-    pub file_type: FileType,
-    pub filename: String,
+    pub type: FileType,
+    pub name: String,
     pub weight: usize,
     pub data: FileData,
 }
