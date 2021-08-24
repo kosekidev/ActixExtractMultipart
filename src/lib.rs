@@ -84,8 +84,6 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
 
                     let file_type_str: String = get_file_type(field.content_type());
 
-                    println!("str type: {}", &file_type_str);
-
                     let mut sub_params = Map::new();
                     sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
                     sub_params.insert("filename".to_owned(), Value::String(file_name.to_string()));
