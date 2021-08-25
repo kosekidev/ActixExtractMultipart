@@ -14,15 +14,23 @@ File is a structure for any files:
 ```rust
 #[derive(Debug, Deserialize)]
 pub struct File {
-    pub #type: FileType,
-    pub name: String,
-    size: usize,
-    pub data: FileData,
+    file_type: FileType,
+    name: String,
+    size: u64,
+    data: FileData,
 }
 impl File {
-    // Return the size of the file
+    pub fn file_type(&self) -> &FileType {
+        &self.file_type
+    }
+    pub fn name(&self) -> &String {
+        &self.name
+    }
     pub fn len(&self) -> u64 {
         self.size
+    }
+    pub fn data(&self) -> &FileData {
+        &self.data
     }
 }
 ```
@@ -53,7 +61,7 @@ struct example {
 
 fn saving_file_function(file: File) -> Result<(), ()> {
     // Do some stuff here
-    println!("Saving file \"{}\" successfully", file.name);
+    println!("Saving file \"{}\" successfully", file.name());
 
     Ok(())
 }

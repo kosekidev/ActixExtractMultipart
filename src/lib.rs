@@ -32,14 +32,23 @@ pub enum FileType {
 
 #[derive(Debug, Deserialize)]
 pub struct File {
-    pub r#type: FileType,
-    pub name: String,
+    file_type: FileType,
+    name: String,
     size: u64,
-    pub data: FileData,
+    data: FileData,
 }
 impl File {
+    pub fn file_type(&self) -> &FileType {
+        &self.file_type
+    }
+    pub fn name(&self) -> &String {
+        &self.name
+    }
     pub fn len(&self) -> u64 {
         self.size
+    }
+    pub fn data(&self) -> &FileData {
+        &self.data
     }
 }
 
@@ -90,7 +99,7 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
                     let file_type_str: String = get_file_type(field.content_type());
 
                     let mut sub_params = Map::new();
-                    sub_params.insert("type".to_owned(), Value::String(file_type_str.clone()));
+                    sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
                     sub_params.insert("name".to_owned(), Value::String(file_name.to_string()));
                     sub_params.insert("size".to_owned(), Value::Number(Number::from(size)));
                     sub_params.insert("data".to_owned(), Value::Array(data));
