@@ -53,7 +53,7 @@ struct example {
 
 fn saving_file_function(file: File) -> Result<(), ()> {
     // Do some stuff here
-    println!("Saving file \"{}\" successfully", file.filename);
+    println!("Saving file \"{}\" successfully", file.name);
 
     Ok(())
 }
