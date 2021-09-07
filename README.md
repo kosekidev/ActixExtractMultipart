@@ -4,23 +4,23 @@ Functions and structures to handle actix multipart more easily. You can convert 
 To use this function, you need to create a structure with "Deserialize" trait, like this:
 ```rust
 #[derive(Deserialize)]
-struct example {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
-    file_param: Option<File>
+    files_param: Option<Vec<File>>
 }
 ```
 File is a structure for any files:
 ```rust
 #[derive(Debug, Deserialize)]
 pub struct File {
-    file_type: FileType,
+    file_type: String,
     name: String,
     size: u64,
     data: FileData,
 }
 impl File {
-    pub fn file_type(&self) -> &FileType {
+    pub fn file_type(&self) -> &String {
         &self.file_type
     }
     pub fn name(&self) -> &String {
@@ -34,7 +34,7 @@ impl File {
     }
 }
 ```
-FileData is an alias to Vec<u8> bytes: (Defined in multipart.rs file)
+FileData is an alias to Vec<u8> bytes:
 ```rust
 pub type FileData = Vec<u8>;
 ```
@@ -111,29 +111,5 @@ struct example {
     string_param: String,
     optional_u_param: Option<u32>,
     file_param: Option<File>
-}
-```
-The function extract_multipart will return Err(_) value also if the file type was not in FileType enumeration.
-```
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FileType {
-    ImagePNG,
-    ImageJPEG,
-    ImageGIF,
-    ImageWEBP,
-    ApplicationPDF,
-    ApplicationJSON,
-    ApplicationXML,
-    TextCSV,
-    TextPlain,
-    #[serde(alias = "applicationvndoasisopendocumenttext")]
-    ODT,
-    #[serde(alias = "applicationvndoasisopendocumentspreadsheet")]
-    ODS,
-    #[serde(alias = "applicationvndmsexcel")]
-    XLS,
-    #[serde(alias = "applicationvndopenxmlformatsofficedocumentspreadsheetmlsheet")]
-    XLSX,
 }
 ```
