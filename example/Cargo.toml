@@ -1,6 +1,6 @@
 [package]
 name = "exemple"
-version = "0.2.1"
+version = "0.3.1"
 authors = ["KosekiDev <vincent.brehaut@gmail.com>"]
 edition = "2018"
 
@@ -12,4 +12,4 @@ actix-multipart = "0.3.0"
 serde = { version = "1.0.125", features = ["derive"] }
 serde_json = "1.0.64"
 futures = "0.3.14"
-actix_extract_multipart = "0.2.1"
+actix_extract_multipart = "0.3.1"

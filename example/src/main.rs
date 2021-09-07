@@ -5,35 +5,37 @@ use actix_multipart::Multipart;
 use actix_extract_multipart::*;
 
 #[derive(Deserialize)]
-struct example {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
-    file_param: Option<File>
+    files_param: Option<Vec<File>>
 }
 
-fn saving_file_function(file: File) -> Result<(), ()> {
+fn saving_files_function(file: Vec<File>) -> Result<(), ()> {
     // Do some stuff here
-    println!("Saving file \"{}\" successfully", file.name);
+    for f in file {
+        println!("Saving file \"{}\" successfully (type: {:?})", f.name(), f.file_type());
+    }
 
     Ok(())
 }
 
 #[post("/example")]
 async fn index(payload: Multipart) -> HttpResponse {
-    let example_structure = match extract_multipart::<example>(payload).await {
+    let example_structure = match extract_multipart::<Example>(payload).await {
         Ok(data) => data,
         Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
     };
     
     println!("Value of string_param: {}", example_structure.string_param);
     println!("Value of optional_u_param: {:?}", example_structure.optional_u_param);
-    println!("Having file? {}", match example_structure.file_param {
+    println!("Having files? {}", match &example_structure.files_param {
         Some(_) => "Yes",
         None => "No"
     });
 
-    if let Some(file) = example_structure.file_param {
-        match saving_file_function(file) {
+    if let Some(file) = example_structure.files_param {
+        match saving_files_function(file) {
             Ok(_) => println!("File saved!"),
             Err(_) => println!("An error occured while file saving")
         }
