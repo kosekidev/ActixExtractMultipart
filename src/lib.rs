@@ -9,36 +9,14 @@ use std::str;
 pub type FileData = Vec<u8>;
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FileType {
-    ImagePNG,
-    ImageJPEG,
-    ImageGIF,
-    ImageWEBP,
-    ApplicationPDF,
-    ApplicationJSON,
-    ApplicationXML,
-    TextCSV,
-    TextPlain,
-    #[serde(alias = "applicationvndoasisopendocumenttext")]
-    ODT,
-    #[serde(alias = "applicationvndoasisopendocumentspreadsheet")]
-    ODS,
-    #[serde(alias = "applicationvndmsexcel")]
-    XLS,
-    #[serde(alias = "applicationvndopenxmlformatsofficedocumentspreadsheetmlsheet")]
-    XLSX,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct File {
-    file_type: FileType,
+    file_type: String,
     name: String,
     size: u64,
     data: FileData,
 }
 impl File {
-    pub fn file_type(&self) -> &FileType {
+    pub fn file_type(&self) -> &String {
         &self.file_type
     }
     pub fn name(&self) -> &String {
@@ -50,17 +28,6 @@ impl File {
     pub fn data(&self) -> &FileData {
         &self.data
     }
-}
-
-fn remove_specials_char(text: String) -> String {
-    text.replace(".", "")
-        .replace("_", "")
-        .replace("-", "")
-}
-fn get_file_type(content_type: &mime::Mime) -> String {
-    let main_type = remove_specials_char(content_type.type_().to_string());
-    let sub_type = remove_specials_char(content_type.subtype().to_string());
-    format!("{}{}", main_type, sub_type)
 }
 
 pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
@@ -96,7 +63,8 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
                         continue 'mainWhile;
                     }
 
-                    let file_type_str: String = get_file_type(field.content_type());
+                    // let file_type_str: String = get_file_type(field.content_type());
+                    let file_type_str: String = field.content_type().to_string();
 
                     let mut sub_params = Map::new();
                     sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
@@ -104,7 +72,20 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
                     sub_params.insert("size".to_owned(), Value::Number(Number::from(size)));
                     sub_params.insert("data".to_owned(), Value::Array(data));
 
-                    params.insert(field_name.to_owned(), Value::Object(sub_params));
+                    if params.contains_key(&field_name.to_owned()) {
+                        match params.get_mut(&field_name.to_owned()).unwrap() {
+                            Value::Array(val) => {
+                                val.push(Value::Object(sub_params));
+                            }
+                            _ => {
+                                let pre_val = params.get(&field_name.to_owned()).unwrap().clone();
+                                params.remove(&field_name.to_owned());
+                                params.insert(field_name.to_owned(), Value::Array(vec![pre_val, Value::Object(sub_params)]));
+                            }
+                        }
+                    } else {
+                        params.insert(field_name.to_owned(), Value::Object(sub_params));
+                    }
                 } else {
                     if let Some(value) = field.next().await {
                         match value {
@@ -144,7 +125,6 @@ mod tests {
     use tokio_stream::wrappers::UnboundedReceiverStream;
     use futures_core::stream::{Stream};
     use serde::{Deserialize};
-    use mime;
 
     fn create_stream() -> (
         mpsc::UnboundedSender<Result<Bytes, PayloadError>>,
@@ -395,10 +375,5 @@ mod tests {
             Ok(data) => assert_eq!(if data.param1 == 56 && data.param2 == 24 { true } else { false }, true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
-    }
-
-    #[actix_rt::test]
-    async fn mime_type_to_string() {
-        assert_eq!(get_file_type(&mime::APPLICATION_OCTET_STREAM), "applicationoctetstream".to_string())
     }
 }
