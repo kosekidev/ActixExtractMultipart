@@ -53,7 +53,7 @@ use actix_multipart::Multipart;
 use actix_extract_multipart::*;
 
 #[derive(Deserialize)]
-struct example {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
     file_param: File
@@ -68,7 +68,7 @@ fn saving_file_function(file: File) -> Result<(), ()> {
 
 #[post("/example")]
 async fn index(payload: Multipart) -> HttpResponse {
-    let example_structure = match extract_multipart::<example>(payload).await {
+    let example_structure = match extract_multipart::<Example>(payload).await {
         Ok(data) => data,
         Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
     };
@@ -107,7 +107,7 @@ In this example, if you dont have received a file, extract_multipart will return
 If the File is optional, you can simply set the type as Option<File>, like this:
 ```rust
 #[derive(Deserialize)]
-struct example {
+struct Example {
     string_param: String,
     optional_u_param: Option<u32>,
     file_param: Option<File>
