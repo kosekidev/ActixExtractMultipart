@@ -113,3 +113,37 @@ struct Example {
     file_param: Option<File>
 }
 ```
+In the case of Vec<File>, don't forget to put hooks at the end of the field name.
+In the follow html exemple, you can notice that the file's field's name contain hooks: name="files_param[]".
+It's important, without hooks, this code will not work.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testing</title>
+    <script>
+        function send() {
+            let myHeaders = new Headers();
+            let formdata = new FormData(document.getElementById('form'));
+            let myInit = { method: 'POST', headers: myHeaders, body: formdata };
+            fetch("http://127.0.0.1:8082/example", myInit)
+            .then(() => {
+                console.log("It works!")
+            })
+            .catch((e) => {
+                console.log("Error!\n" + e)
+            })
+        }
+    </script>
+</head>
+<body>
+    <form id="form">
+        <input type="file" name="files_param[]" multiple>
+        <button type="button" onclick="send()">OK</button>
+    </form>
+</body>
+</html>
+```

@@ -30,7 +30,7 @@ impl File {
     }
 }
 
-pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
+pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_json::Error>
     where T: serde::de::DeserializeOwned
 {
     let mut params = Map::new();
@@ -63,7 +63,6 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
                         continue 'mainWhile;
                     }
 
-                    // let file_type_str: String = get_file_type(field.content_type());
                     let file_type_str: String = field.content_type().to_string();
 
                     let mut sub_params = Map::new();
@@ -72,19 +71,21 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
                     sub_params.insert("size".to_owned(), Value::Number(Number::from(size)));
                     sub_params.insert("data".to_owned(), Value::Array(data));
 
-                    if params.contains_key(&field_name.to_owned()) {
-                        match params.get_mut(&field_name.to_owned()).unwrap() {
+                    let field_name_formatted = field_name.replace("[]", "");
+
+                    if params.contains_key(&field_name_formatted.to_owned()) {
+                        match params.get_mut(&field_name_formatted.to_owned()).unwrap() {
                             Value::Array(val) => {
                                 val.push(Value::Object(sub_params));
                             }
-                            _ => {
-                                let pre_val = params.get(&field_name.to_owned()).unwrap().clone();
-                                params.remove(&field_name.to_owned());
-                                params.insert(field_name.to_owned(), Value::Array(vec![pre_val, Value::Object(sub_params)]));
-                            }
+                            _ => ()
                         }
                     } else {
-                        params.insert(field_name.to_owned(), Value::Object(sub_params));
+                        if field_name.ends_with("[]") {
+                            params.insert(field_name_formatted.to_owned(), Value::Array(vec![Value::Object(sub_params)]));
+                        } else {
+                            params.insert(field_name_formatted.to_owned(), Value::Object(sub_params));
+                        }
                     }
                 } else {
                     if let Some(value) = field.next().await {
@@ -110,7 +111,7 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, ()>
     
     match serde_json::from_value::<T>(Value::Object(params)) {
         Ok(final_struct) => Ok(final_struct),
-        Err(_) => Err(())
+        Err(e) => Err(e)
     }
 }
 
@@ -153,6 +154,76 @@ mod tests {
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
              Content-Disposition: form-data; name=\"first_param\"\r\n\r\n\
              A simple test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        (bytes, headers)
+    }
+    fn create_simple_request_with_3_files_array_header() -> (Bytes, HeaderMap) {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param[]\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param[]\"; filename=\"fn2.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param[]\"; filename=\"fn3.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        (bytes, headers)
+    }
+    fn create_simple_request_with_1_files_array_header() -> (Bytes, HeaderMap) {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param[]\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        (bytes, headers)
+    }
+    fn create_simple_request_with_3_files_array_with_name_without_hooks_header() -> (Bytes, HeaderMap) {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param\"; filename=\"fn2txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"files_param\"; filename=\"fn3.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\r\n\
+             test\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
         );
         let mut headers = HeaderMap::new();
@@ -353,6 +424,66 @@ mod tests {
         match extract_multipart::<Test>(multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_none(), true),
             Err(_) => panic!("Failed to parse multipart into structure")
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_multiple_files_param_with_3_files() {
+        #[derive(Deserialize)]
+        struct Test {
+            files_param: Vec<File>,
+        }
+
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_3_files_array_header();
+
+        sender.send(Ok(bytes)).unwrap();
+
+        let multipart = Multipart::new(&headers, payload);
+
+        match extract_multipart::<Test>(multipart).await {
+            Ok(data) => assert_eq!((data.files_param.len() == 3), true),
+            Err(_) => panic!("Failed to parse multipart into structure")
+        }
+    }
+    #[actix_rt::test]
+    async fn test_multiple_files_param_with_1_file() {
+        #[derive(Deserialize)]
+        struct Test {
+            files_param: Vec<File>,
+        }
+
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_1_files_array_header();
+
+        sender.send(Ok(bytes)).unwrap();
+
+        let multipart = Multipart::new(&headers, payload);
+
+        match extract_multipart::<Test>(multipart).await {
+            Ok(data) => assert_eq!((data.files_param.len() == 1), true),
+            Err(_) => panic!("Failed to parse multipart into structure")
+        }
+    }
+
+    #[actix_rt::test]
+    #[should_panic(expected = "When uploading multiple files with one field, the field name need to have hooks [] at the end")]
+    async fn test_multiple_files_param_with_3_file_with_name_without_hooks() {
+        #[derive(Deserialize)]
+        struct Test {
+            files_param: Vec<File>,
+        }
+
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_3_files_array_with_name_without_hooks_header();
+
+        sender.send(Ok(bytes)).unwrap();
+
+        let multipart = Multipart::new(&headers, payload);
+
+        match extract_multipart::<Test>(multipart).await {
+            Ok(data) => assert_eq!((data.files_param.len() == 3), true),
+            Err(_) => panic!("When uploading multiple files with one field, the field name need to have hooks [] at the end")
         }
     }
 
