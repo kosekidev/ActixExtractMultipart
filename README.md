@@ -102,7 +102,7 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 ```
-In this example, if you dont have received a file, extract_multipart will return an Err(_), because data don't correspond to the data struct "example".
+In this example, if you dont have received a file, extract_multipart will return an Err(_), because data don't correspond to the data struct "Example".
 If the File is optional, you can simply set the type as Option<File>, like this:
 ```rust
 #[derive(Deserialize)]
