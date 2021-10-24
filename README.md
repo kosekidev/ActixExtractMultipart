@@ -16,7 +16,6 @@ File is a structure for any files:
 pub struct File {
     file_type: String,
     name: String,
-    size: u64,
     data: FileData,
 }
 impl File {
@@ -26,8 +25,8 @@ impl File {
     pub fn name(&self) -> &String {
         &self.name
     }
-    pub fn len(&self) -> u64 {
-        self.size
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
     pub fn data(&self) -> &FileData {
         &self.data

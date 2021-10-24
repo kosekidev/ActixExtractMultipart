@@ -12,7 +12,6 @@ pub type FileData = Vec<u8>;
 pub struct File {
     file_type: String,
     name: String,
-    size: u64,
     data: FileData,
 }
 impl File {
@@ -22,8 +21,8 @@ impl File {
     pub fn name(&self) -> &String {
         &self.name
     }
-    pub fn len(&self) -> u64 {
-        self.size
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
     pub fn data(&self) -> &FileData {
         &self.data
@@ -38,6 +37,8 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_jso
     'mainWhile: while let Ok(Some(mut field)) = payload.try_next().await {
         if let Some(content_disposition) = field.content_disposition() {
             if let Some(field_name) = content_disposition.get_name() {
+                let field_name_formatted = field_name.replace("[]", "");
+
                 if let Some(file_name) = content_disposition.get_filename() {
                     let mut data: Vec<Value> = Vec::new();
 
@@ -51,15 +52,13 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_jso
                                 }
                             },
                             Err(_) => {
-                                params.insert(field_name.to_owned(), Value::Null);
+                                params.insert(field_name_formatted.to_owned(), Value::Null);
                                 continue 'mainWhile;
                             }
                         }
                     }
             
-                    let size: usize = data.len();
-
-                    if size == 0 {
+                    if data.len() == 0 {
                         continue 'mainWhile;
                     }
 
@@ -68,10 +67,7 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_jso
                     let mut sub_params = Map::new();
                     sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
                     sub_params.insert("name".to_owned(), Value::String(file_name.to_string()));
-                    sub_params.insert("size".to_owned(), Value::Number(Number::from(size)));
                     sub_params.insert("data".to_owned(), Value::Array(data));
-
-                    let field_name_formatted = field_name.replace("[]", "");
 
                     if params.contains_key(&field_name_formatted.to_owned()) {
                         match params.get_mut(&field_name_formatted.to_owned()).unwrap() {
@@ -92,16 +88,16 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_jso
                         match value {
                             Ok(val) => match str::from_utf8(&val) {
                                 Ok(convert_str) => match convert_str.parse::<isize>() {
-                                    Ok(number) => params.insert(field_name.to_owned(), Value::Number(Number::from(number))),
+                                    Ok(number) => params.insert(field_name_formatted.to_owned(), Value::Number(Number::from(number))),
                                     Err(_) => match convert_str {
-                                        "true" => params.insert(field_name.to_owned(), Value::Bool(true)),
-                                        "false" => params.insert(field_name.to_owned(), Value::Bool(false)),
-                                        _ => params.insert(field_name.to_owned(), Value::String(convert_str.to_owned()))
+                                        "true" => params.insert(field_name_formatted.to_owned(), Value::Bool(true)),
+                                        "false" => params.insert(field_name_formatted.to_owned(), Value::Bool(false)),
+                                        _ => params.insert(field_name_formatted.to_owned(), Value::String(convert_str.to_owned()))
                                     },
                                 },
-                                Err(_) => params.insert(field_name.to_owned(), Value::Null)
+                                Err(_) => params.insert(field_name_formatted.to_owned(), Value::Null)
                             },
-                            Err(_) => params.insert(field_name.to_owned(), Value::Null),
+                            Err(_) => params.insert(field_name_formatted.to_owned(), Value::Null),
                         };
                     }
                 }
@@ -325,7 +321,7 @@ mod tests {
         let multipart = Multipart::new(&headers, payload);
 
         match extract_multipart::<Test>(multipart).await {
-            Ok(data) => assert_eq!(data.file_param.size, 4),
+            Ok(data) => assert_eq!(data.file_param.len(), 4),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
     }
