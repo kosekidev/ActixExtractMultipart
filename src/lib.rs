@@ -29,6 +29,23 @@ impl File {
     }
 }
 
+fn params_insert(params: &mut Map<String, Value>, field_name: &str, field_name_formatted: &String, element: Value) {
+    if params.contains_key(&field_name_formatted.to_owned()) {
+        match params.get_mut(&field_name_formatted.to_owned()).unwrap() {
+            Value::Array(val) => {
+                val.push(element);
+            }
+            _ => ()
+        }
+    } else {
+        if field_name.ends_with("[]") {
+            params.insert(field_name_formatted.to_owned(), Value::Array(vec![element]));
+        } else {
+            params.insert(field_name_formatted.to_owned(), element);
+        }
+    }
+}
+
 pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_json::Error>
     where T: serde::de::DeserializeOwned
 {
@@ -69,35 +86,22 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_jso
                     sub_params.insert("name".to_owned(), Value::String(file_name.to_string()));
                     sub_params.insert("data".to_owned(), Value::Array(data));
 
-                    if params.contains_key(&field_name_formatted.to_owned()) {
-                        match params.get_mut(&field_name_formatted.to_owned()).unwrap() {
-                            Value::Array(val) => {
-                                val.push(Value::Object(sub_params));
-                            }
-                            _ => ()
-                        }
-                    } else {
-                        if field_name.ends_with("[]") {
-                            params.insert(field_name_formatted.to_owned(), Value::Array(vec![Value::Object(sub_params)]));
-                        } else {
-                            params.insert(field_name_formatted.to_owned(), Value::Object(sub_params));
-                        }
-                    }
+                    params_insert(&mut params, field_name, &field_name_formatted, Value::Object(sub_params));
                 } else {
                     if let Some(value) = field.next().await {
                         match value {
                             Ok(val) => match str::from_utf8(&val) {
                                 Ok(convert_str) => match convert_str.parse::<isize>() {
-                                    Ok(number) => params.insert(field_name_formatted.to_owned(), Value::Number(Number::from(number))),
+                                    Ok(number) => params_insert(&mut params, field_name, &field_name_formatted, Value::Number(Number::from(number))),
                                     Err(_) => match convert_str {
-                                        "true" => params.insert(field_name_formatted.to_owned(), Value::Bool(true)),
-                                        "false" => params.insert(field_name_formatted.to_owned(), Value::Bool(false)),
-                                        _ => params.insert(field_name_formatted.to_owned(), Value::String(convert_str.to_owned()))
+                                        "true" => params_insert(&mut params, field_name, &field_name_formatted, Value::Bool(true)),
+                                        "false" => params_insert(&mut params, field_name, &field_name_formatted, Value::Bool(false)),
+                                        _ => params_insert(&mut params, field_name, &field_name_formatted, Value::String(convert_str.to_owned()))
                                     },
                                 },
-                                Err(_) => params.insert(field_name_formatted.to_owned(), Value::Null)
+                                Err(_) => params_insert(&mut params, field_name, &field_name_formatted, Value::Null)
                             },
-                            Err(_) => params.insert(field_name_formatted.to_owned(), Value::Null),
+                            Err(_) => params_insert(&mut params, field_name, &field_name_formatted, Value::Null)
                         };
                     }
                 }
@@ -150,6 +154,44 @@ mod tests {
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
              Content-Disposition: form-data; name=\"first_param\"\r\n\r\n\
              A simple test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        (bytes, headers)
+    }
+    fn create_simple_request_with_array_header() -> (Bytes, HeaderMap) {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"u32_param[]\"\r\n\r\n\
+             56\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"u32_param[]\"\r\n\r\n\
+             49\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"i32_param[]\"\r\n\r\n\
+             -12\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"i32_param[]\"\r\n\r\n\
+             -2\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"i32_param[]\"\r\n\r\n\
+             -17\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"string_param[]\"\r\n\r\n\
+             A simple test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"string_param[]\"\r\n\r\n\
+             A simple test2\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"string_param[]\"\r\n\r\n\
+             A simple test3\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
         );
         let mut headers = HeaderMap::new();
@@ -347,6 +389,29 @@ mod tests {
 
         match extract_multipart::<Test>(multipart).await {
             Ok(_) => panic!("Types not matching, but parsing was a success. It should have return an Err(_)"),
+            Err(_) => panic!("Failed to parse multipart into structure")
+        }
+    }
+
+    #[allow(dead_code)]
+    #[actix_rt::test]
+    async fn testing_primitive_type_array() {
+        #[derive(Deserialize)]
+        struct Test {
+            string_param: Vec<String>,
+            i32_param: Vec<i32>,
+            u32_param: Vec<u32>,
+        }
+
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_array_header();
+
+        sender.send(Ok(bytes)).unwrap();
+
+        let multipart = Multipart::new(&headers, payload);
+
+        match extract_multipart::<Test>(multipart).await {
+            Ok(data) => assert_eq!(data.string_param.len(), 3),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
     }

@@ -112,7 +112,7 @@ struct Example {
     file_param: Option<File>
 }
 ```
-In the case of Vec<File>, don't forget to put hooks at the end of the field name.
+In the case of Vec<File>, don't forget to put hooks at the end of the field name. You can also have any other type array like Vec<String>, Vec<i32> etc...
 In the follow html exemple, you can notice that the file's field's name contain hooks: name="files_param[]".
 It's important, without hooks, this code will not work.
 ```html
