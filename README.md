@@ -59,7 +59,7 @@ fn saving_file_function(file: &File) -> Result<(), ()> {
 }
 
 #[post("/example")]
-async fn index(example_structure: Multipart) -> HttpResponse {    
+async fn index(example_structure: Multipart::<Example>) -> HttpResponse {    
     println!("Value of string_param: {}", example_structure.string_param);
     println!("Value of optional_u_param: {:?}", example_structure.optional_u_param);
     println!("Having file? {}", match example_structure.file_param {
