@@ -1,6 +1,5 @@
 use actix_web::{post, App, HttpResponse, HttpServer};
 use serde::{Deserialize};
-use actix_multipart::Multipart;
 
 use actix_extract_multipart::*;
 
@@ -11,7 +10,7 @@ struct Example {
     files_param: Option<Vec<File>>
 }
 
-fn saving_files_function(file: Vec<File>) -> Result<(), ()> {
+fn saving_files_function(file: &Vec<File>) -> Result<(), ()> {
     // Do some stuff here
     for f in file {
         println!("Saving file \"{}\" successfully (type: {:?})", f.name(), f.file_type());
@@ -21,12 +20,7 @@ fn saving_files_function(file: Vec<File>) -> Result<(), ()> {
 }
 
 #[post("/example")]
-async fn index(payload: Multipart) -> HttpResponse {
-    let example_structure = match extract_multipart::<Example>(payload).await {
-        Ok(data) => data,
-        Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
-    };
-    
+async fn index(example_structure: Multipart::<Example>) -> HttpResponse {
     println!("Value of string_param: {}", example_structure.string_param);
     println!("Value of optional_u_param: {:?}", example_structure.optional_u_param);
     println!("Having files? {}", match &example_structure.files_param {
@@ -34,8 +28,8 @@ async fn index(payload: Multipart) -> HttpResponse {
         None => "No"
     });
 
-    if let Some(file) = example_structure.files_param {
-        match saving_files_function(file) {
+    if let Some(file) = &example_structure.files_param {
+        match saving_files_function(&file) {
             Ok(_) => println!("File saved!"),
             Err(_) => println!("An error occured while file saving")
         }

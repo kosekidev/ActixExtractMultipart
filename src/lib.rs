@@ -1,10 +1,15 @@
 #![crate_name = "actix_extract_multipart"]
 
-use actix_multipart::Multipart;
+use actix_multipart;
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize};
 use serde_json::{Value, Number, Map};
 use std::str;
+use std::ops::{Deref, DerefMut};
+
+use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
+use futures_util::future::{Future};
+use std::pin::Pin;
 
 pub type FileData = Vec<u8>;
 
@@ -46,8 +51,34 @@ fn params_insert(params: &mut Map<String, Value>, field_name: &str, field_name_f
     }
 }
 
-pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_json::Error>
-    where T: serde::de::DeserializeOwned
+pub struct Multipart<T> {
+    data: T
+}
+
+impl<T> Multipart<T> {
+    fn new(data: T) -> Self {
+        Multipart::<T> {
+            data
+        }
+    }
+}
+
+impl<T> Deref for Multipart<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.data
+    }
+}
+
+impl<T> DerefMut for Multipart<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.data
+    }
+}
+
+async fn extract_multipart<T>(mut payload: actix_multipart::Multipart) -> Result<T, serde_json::Error>
+where T: serde::de::DeserializeOwned
 {
     let mut params = Map::new();
 
@@ -108,17 +139,34 @@ pub async fn extract_multipart<T>(mut payload: Multipart) -> Result<T, serde_jso
             }
         }
     }
-    
+
     match serde_json::from_value::<T>(Value::Object(params)) {
         Ok(final_struct) => Ok(final_struct),
         Err(e) => Err(e)
     }
 }
 
+impl<T: serde::de::DeserializeOwned> FromRequest for Multipart<T> {
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let multipart = actix_multipart::Multipart::new(req.headers(), payload.take());
+        
+        Box::pin(async move {
+            match extract_multipart::<T>(multipart).await {
+                Ok(response) => Ok(Multipart::<T>::new(response)),
+                Err(_) => Err(actix_web::error::ErrorBadRequest(format!("The data received does not correspond to those expected")))
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_multipart::Multipart;
+    use actix_multipart;
     use actix_web::http::header::{self, HeaderMap};
     use tokio::sync::mpsc;
     use actix_web::error::{PayloadError};
@@ -360,9 +408,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.len(), 4),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -385,9 +433,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(_) => panic!("Types not matching, but parsing was a success. It should have return an Err(_)"),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -408,9 +456,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.string_param.len(), 3),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -432,9 +480,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_none(), true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -456,9 +504,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_some(), true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -480,9 +528,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_none(), true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -500,9 +548,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!((data.files_param.len() == 3), true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -519,9 +567,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!((data.files_param.len() == 1), true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }
@@ -540,9 +588,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!((data.files_param.len() == 3), true),
             Err(_) => panic!("When uploading multiple files with one field, the field name need to have hooks [] at the end")
         }
@@ -561,9 +609,9 @@ mod tests {
 
         sender.send(Ok(bytes)).unwrap();
 
-        let multipart = Multipart::new(&headers, payload);
+        let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
-        match extract_multipart::<Test>(multipart).await {
+        match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(if data.param1 == 56 && data.param2 == 24 { true } else { false }, true),
             Err(_) => panic!("Failed to parse multipart into structure")
         }

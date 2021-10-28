@@ -37,18 +37,11 @@ FileData is an alias to Vec<u8> bytes:
 ```rust
 pub type FileData = Vec<u8>;
 ```
-Then, we can call the extract_multipart function. It takes in parameter the actix_multipart::Multipart and precise the structure output like this:
-    
-```rust
-async fn extract_multipart::<StructureType: T>(actix_mutlipart::Multipart) -> Result<T, _>
-```
 
 ## Example of use
 ```rust
 use actix_web::{post, App, HttpResponse, HttpServer};
 use serde::{Deserialize};
-use actix_multipart::Multipart;
-
 use actix_extract_multipart::*;
 
 #[derive(Deserialize)]
@@ -58,7 +51,7 @@ struct Example {
     file_param: File
 }
 
-fn saving_file_function(file: File) -> Result<(), ()> {
+fn saving_file_function(file: &File) -> Result<(), ()> {
     // Do some stuff here
     println!("Saving file \"{}\" successfully", file.name());
 
@@ -66,12 +59,7 @@ fn saving_file_function(file: File) -> Result<(), ()> {
 }
 
 #[post("/example")]
-async fn index(payload: Multipart) -> HttpResponse {
-    let example_structure = match extract_multipart::<Example>(payload).await {
-        Ok(data) => data,
-        Err(_) => return HttpResponse::BadRequest().json("The data received does not correspond to those expected")
-    };
-    
+async fn index(example_structure: Multipart) -> HttpResponse {    
     println!("Value of string_param: {}", example_structure.string_param);
     println!("Value of optional_u_param: {:?}", example_structure.optional_u_param);
     println!("Having file? {}", match example_structure.file_param {
@@ -79,8 +67,8 @@ async fn index(payload: Multipart) -> HttpResponse {
         None => "No"
     });
 
-    if let Some(file) = example_structure.file_param {
-        match saving_file_function(file) {
+    if let Some(file) = &example_structure.file_param {
+        match saving_file_function(&file) {
             Ok(_) => println!("File saved!"),
             Err(_) => println!("An error occured while file saving")
         }
