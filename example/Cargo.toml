@@ -1,6 +1,6 @@
 [package]
 name = "exemple"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["KosekiDev <vincent.brehaut@gmail.com>"]
 edition = "2018"
 
