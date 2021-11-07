@@ -157,7 +157,7 @@ impl<T: serde::de::DeserializeOwned> FromRequest for Multipart<T> {
         Box::pin(async move {
             match extract_multipart::<T>(multipart).await {
                 Ok(response) => Ok(Multipart::<T>::new(response)),
-                Err(_) => Err(actix_web::error::ErrorBadRequest(format!("The data received does not correspond to those expected")))
+                Err(_) => Err(actix_web::error::ErrorBadRequest(format!("")))
             }
         })
     }
