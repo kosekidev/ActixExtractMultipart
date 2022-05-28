@@ -1,8 +1,8 @@
 [package]
 name = "actix_extract_multipart"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Bréhaut Vincent <vincent.brehaut@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = "ActixExtractMultipart is a library for parse actix_multipart into a structure that you defined"
 repository = "https://github.com/KosekiDev/ActixExtractMultipart"
@@ -14,10 +14,10 @@ name = "actix_extract_multipart"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = "3.3.2"
-actix-multipart = "0.3.0"
+actix-web = "4"
+actix-multipart = "0.4.0"
 serde = { version = "1.0.125", features = ["derive"] }
-serde_json = "1.0.64"
+serde_json = "1.0.73"
 futures = "0.3.14"
 futures-util = "0.3.17"
 

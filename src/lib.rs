@@ -2,13 +2,13 @@
 
 use actix_multipart;
 use futures::{StreamExt, TryStreamExt};
-use serde::{Deserialize};
-use serde_json::{Value, Number, Map};
-use std::str;
+use serde::Deserialize;
+use serde_json::{Map, Number, Value};
 use std::ops::{Deref, DerefMut};
+use std::str;
 
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
-use futures_util::future::{Future};
+use futures_util::future::Future;
 use std::pin::Pin;
 
 pub type FileData = Vec<u8>;
@@ -34,32 +34,30 @@ impl File {
     }
 }
 
-fn params_insert(params: &mut Map<String, Value>, field_name: &str, field_name_formatted: &String, element: Value) {
-    if params.contains_key(&field_name_formatted.to_owned()) {
-        match params.get_mut(&field_name_formatted.to_owned()).unwrap() {
-            Value::Array(val) => {
-                val.push(element);
-            }
-            _ => ()
+fn params_insert(
+    params: &mut Map<String, Value>,
+    field_name: &str,
+    field_name_formatted: &String,
+    element: Value,
+) {
+    if params.contains_key(field_name_formatted) {
+        if let Value::Array(val) = params.get_mut(field_name_formatted).unwrap() {
+            val.push(element);
         }
+    } else if field_name.ends_with("[]") {
+        params.insert(field_name_formatted.to_owned(), Value::Array(vec![element]));
     } else {
-        if field_name.ends_with("[]") {
-            params.insert(field_name_formatted.to_owned(), Value::Array(vec![element]));
-        } else {
-            params.insert(field_name_formatted.to_owned(), element);
-        }
+        params.insert(field_name_formatted.to_owned(), element);
     }
 }
 
 pub struct Multipart<T> {
-    data: T
+    data: T,
 }
 
 impl<T> Multipart<T> {
     fn new(data: T) -> Self {
-        Multipart::<T> {
-            data
-        }
+        Multipart::<T> { data }
     }
 }
 
@@ -77,87 +75,111 @@ impl<T> DerefMut for Multipart<T> {
     }
 }
 
-async fn extract_multipart<T>(mut payload: actix_multipart::Multipart) -> Result<T, serde_json::Error>
-where T: serde::de::DeserializeOwned
+async fn extract_multipart<T>(
+    mut payload: actix_multipart::Multipart,
+) -> Result<T, serde_json::Error>
+where
+    T: serde::de::DeserializeOwned,
 {
     let mut params = Map::new();
 
     'mainWhile: while let Ok(Some(mut field)) = payload.try_next().await {
-        if let Some(content_disposition) = field.content_disposition() {
-            if let Some(field_name) = content_disposition.get_name() {
-                let field_name_formatted = field_name.replace("[]", "");
+        let content_disposition = &field.content_disposition().clone();
+        let field_name = match content_disposition.get_name() {
+            Some(fname) => fname,
+            None => continue 'mainWhile,
+        };
+        let field_name_formatted = field_name.replace("[]", "");
 
-                if let Some(file_name) = content_disposition.get_filename() {
-                    let mut data: Vec<Value> = Vec::new();
+        if let Some(file_name) = content_disposition.get_filename() {
+            let mut data: Vec<Value> = Vec::new();
 
-                    while let Some(chunk) = field.next().await {
-                        match chunk {
-                            Ok(d) => {
-                                let chunk_data: FileData = d.to_vec();
-                                data.reserve_exact(chunk_data.len());
-                                for byte in chunk_data {
-                                    data.push(Value::Number(Number::from(byte)));
-                                }
-                            },
-                            Err(_) => {
-                                params.insert(field_name_formatted.to_owned(), Value::Null);
-                                continue 'mainWhile;
-                            }
+            while let Some(chunk) = field.next().await {
+                match chunk {
+                    Ok(d) => {
+                        let chunk_data: FileData = d.to_vec();
+                        data.reserve_exact(chunk_data.len());
+                        for byte in chunk_data {
+                            data.push(Value::Number(Number::from(byte)));
                         }
                     }
-            
-                    if data.len() == 0 {
+                    Err(_) => {
+                        params.insert(field_name_formatted.to_owned(), Value::Null);
                         continue 'mainWhile;
-                    }
-
-                    let file_type_str: String = field.content_type().to_string();
-
-                    let mut sub_params = Map::new();
-                    sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
-                    sub_params.insert("name".to_owned(), Value::String(file_name.to_string()));
-                    sub_params.insert("data".to_owned(), Value::Array(data));
-
-                    params_insert(&mut params, field_name, &field_name_formatted, Value::Object(sub_params));
-                } else {
-                    if let Some(value) = field.next().await {
-                        match value {
-                            Ok(val) => match str::from_utf8(&val) {
-                                Ok(convert_str) => match convert_str.parse::<isize>() {
-                                    Ok(number) => params_insert(&mut params, field_name, &field_name_formatted, Value::Number(Number::from(number))),
-                                    Err(_) => match convert_str {
-                                        "true" => params_insert(&mut params, field_name, &field_name_formatted, Value::Bool(true)),
-                                        "false" => params_insert(&mut params, field_name, &field_name_formatted, Value::Bool(false)),
-                                        _ => params_insert(&mut params, field_name, &field_name_formatted, Value::String(convert_str.to_owned()))
-                                    },
-                                },
-                                Err(_) => params_insert(&mut params, field_name, &field_name_formatted, Value::Null)
-                            },
-                            Err(_) => params_insert(&mut params, field_name, &field_name_formatted, Value::Null)
-                        };
                     }
                 }
             }
+            if data.is_empty() {
+                continue 'mainWhile;
+            }
+
+            let file_type_str: String = field.content_type().to_string();
+
+            let mut sub_params = Map::new();
+            sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
+            sub_params.insert("name".to_owned(), Value::String(file_name.to_string()));
+            sub_params.insert("data".to_owned(), Value::Array(data));
+
+            params_insert(
+                &mut params,
+                field_name,
+                &field_name_formatted,
+                Value::Object(sub_params),
+            );
+        } else if let Some(value) = field.next().await {
+            if let Ok(val) = value {
+                if let Ok(convert_str) = str::from_utf8(&val) {
+                    match convert_str.parse::<isize>() {
+                        Ok(number) => params_insert(
+                            &mut params,
+                            field_name,
+                            &field_name_formatted,
+                            Value::Number(Number::from(number)),
+                        ),
+                        Err(_) => match convert_str {
+                            "true" => params_insert(
+                                &mut params,
+                                field_name,
+                                &field_name_formatted,
+                                Value::Bool(true),
+                            ),
+                            "false" => params_insert(
+                                &mut params,
+                                field_name,
+                                &field_name_formatted,
+                                Value::Bool(false),
+                            ),
+                            _ => params_insert(
+                                &mut params,
+                                field_name,
+                                &field_name_formatted,
+                                Value::String(convert_str.to_owned()),
+                            ),
+                        },
+                    }
+                    continue 'mainWhile;
+                }
+                continue 'mainWhile;
+            }
+
+            params_insert(&mut params, field_name, &field_name_formatted, Value::Null)
         }
     }
 
-    match serde_json::from_value::<T>(Value::Object(params)) {
-        Ok(final_struct) => Ok(final_struct),
-        Err(e) => Err(e)
-    }
+    serde_json::from_value::<T>(Value::Object(params))
 }
 
 impl<T: serde::de::DeserializeOwned> FromRequest for Multipart<T> {
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let multipart = actix_multipart::Multipart::new(req.headers(), payload.take());
-        
+
         Box::pin(async move {
             match extract_multipart::<T>(multipart).await {
                 Ok(response) => Ok(Multipart::<T>::new(response)),
-                Err(_) => Err(actix_web::error::ErrorBadRequest(format!("")))
+                Err(_) => Err(actix_web::error::ErrorBadRequest("")),
             }
         })
     }
@@ -167,13 +189,13 @@ impl<T: serde::de::DeserializeOwned> FromRequest for Multipart<T> {
 mod tests {
     use super::*;
     use actix_multipart;
+    use actix_web::error::PayloadError;
     use actix_web::http::header::{self, HeaderMap};
-    use tokio::sync::mpsc;
-    use actix_web::error::{PayloadError};
     use actix_web::web::Bytes;
+    use futures_core::stream::Stream;
+    use serde::Deserialize;
+    use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
-    use futures_core::stream::{Stream};
-    use serde::{Deserialize};
 
     fn create_stream() -> (
         mpsc::UnboundedSender<Result<Bytes, PayloadError>>,
@@ -295,7 +317,8 @@ mod tests {
         );
         (bytes, headers)
     }
-    fn create_simple_request_with_3_files_array_with_name_without_hooks_header() -> (Bytes, HeaderMap) {
+    fn create_simple_request_with_3_files_array_with_name_without_hooks_header(
+    ) -> (Bytes, HeaderMap) {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
@@ -412,7 +435,7 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.len(), 4),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
@@ -436,8 +459,10 @@ mod tests {
         let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
         match extract_multipart::<Test>(actix_multipart).await {
-            Ok(_) => panic!("Types not matching, but parsing was a success. It should have return an Err(_)"),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Ok(_) => panic!(
+                "Types not matching, but parsing was a success. It should have return an Err(_)"
+            ),
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
@@ -460,7 +485,7 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.string_param.len(), 3),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
@@ -484,7 +509,7 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_none(), true),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
@@ -508,7 +533,7 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_some(), true),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
@@ -532,7 +557,7 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!(data.file_param.is_none(), true),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
@@ -552,7 +577,7 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!((data.files_param.len() == 3), true),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
     #[actix_rt::test]
@@ -571,12 +596,14 @@ mod tests {
 
         match extract_multipart::<Test>(actix_multipart).await {
             Ok(data) => assert_eq!((data.files_param.len() == 1), true),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 
     #[actix_rt::test]
-    #[should_panic(expected = "When uploading multiple files with one field, the field name need to have hooks [] at the end")]
+    #[should_panic(
+        expected = "When uploading multiple files with one field, the field name need to have hooks [] at the end"
+    )]
     async fn test_multiple_files_param_with_3_file_with_name_without_hooks() {
         #[derive(Deserialize)]
         struct Test {
@@ -584,7 +611,8 @@ mod tests {
         }
 
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_3_files_array_with_name_without_hooks_header();
+        let (bytes, headers) =
+            create_simple_request_with_3_files_array_with_name_without_hooks_header();
 
         sender.send(Ok(bytes)).unwrap();
 
@@ -601,7 +629,7 @@ mod tests {
         #[derive(Deserialize)]
         struct Test {
             param1: u32,
-            param2: u32
+            param2: u32,
         }
 
         let (sender, payload) = create_stream();
@@ -612,8 +640,15 @@ mod tests {
         let actix_multipart = actix_multipart::Multipart::new(&headers, payload);
 
         match extract_multipart::<Test>(actix_multipart).await {
-            Ok(data) => assert_eq!(if data.param1 == 56 && data.param2 == 24 { true } else { false }, true),
-            Err(_) => panic!("Failed to parse multipart into structure")
+            Ok(data) => assert_eq!(
+                if data.param1 == 56 && data.param2 == 24 {
+                    true
+                } else {
+                    false
+                },
+                true
+            ),
+            Err(_) => panic!("Failed to parse multipart into structure"),
         }
     }
 }

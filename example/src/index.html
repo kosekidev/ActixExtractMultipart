@@ -1,0 +1,49 @@
+<html>
+  <head>
+    <title>Teste</title>
+    <style type="text/css">
+      body {
+        max-width: 300px;
+        margin: auto;
+        margin-top: 3rem;
+      }
+      #form {
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="form" onsubmit="calling_api(event)">
+      <label for="string_param">Text</label>
+      <input type="text" name="string_param" id="string_param" /><br />
+      <label for="number_u_param">Unsigned number</label>
+      <input type="number" name="number_u_param" id="number_u_param" /><br />
+      <label for="image">Image (png or jpeg)</label>
+      <input type="file" id="image" name="file_param" /><br />
+      <button>Send</button>
+    </form>
+    <h3>Actix response:</h3>
+    <div id="back_message">None</div>
+    <script>
+      let back_message = document.getElementById("back_message");
+      function calling_api(event) {
+        event.preventDefault();
+
+        let form = document.getElementById("form");
+        let formdata = new FormData(form);
+        let headers = new Headers();
+
+        fetch("/example", {
+          method: "POST",
+          headers,
+          body: formdata,
+        }).then(async (resp) => {
+          console.log(resp);
+          if (resp.status == 200) back_message.innerText = await resp.text();
+          else back_message.innerText = "Error " + resp.status;
+        });
+      }
+    </script>
+  </body>
+</html>
