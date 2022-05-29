@@ -1,6 +1,6 @@
 [package]
 name = "actix_extract_multipart"
-version = "1.1.0"
+version = "1.1.1"
 authors = ["Bréhaut Vincent <vincent.brehaut@gmail.com>"]
 edition = "2021"
 license = "MIT"

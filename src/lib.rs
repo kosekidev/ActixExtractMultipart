@@ -84,15 +84,17 @@ where
     let mut params = Map::new();
 
     'mainWhile: while let Ok(Some(mut field)) = payload.try_next().await {
-        let content_disposition = &field.content_disposition().clone();
-        let field_name = match content_disposition.get_name() {
-            Some(fname) => fname,
-            None => continue 'mainWhile,
-        };
+        let field_name_string = field.content_disposition().get_name().unwrap().to_string();
+        let field_name = field_name_string.as_str();
         let field_name_formatted = field_name.replace("[]", "");
 
-        if let Some(file_name) = content_disposition.get_filename() {
+        if field.content_disposition().get_filename().is_some() {
             let mut data: Vec<Value> = Vec::new();
+            let file_name = field
+                .content_disposition()
+                .get_filename()
+                .unwrap()
+                .to_string();
 
             while let Some(chunk) = field.next().await {
                 match chunk {
@@ -116,8 +118,8 @@ where
             let file_type_str: String = field.content_type().to_string();
 
             let mut sub_params = Map::new();
-            sub_params.insert("file_type".to_owned(), Value::String(file_type_str.clone()));
-            sub_params.insert("name".to_owned(), Value::String(file_name.to_string()));
+            sub_params.insert("file_type".to_owned(), Value::String(file_type_str));
+            sub_params.insert("name".to_owned(), Value::String(file_name));
             sub_params.insert("data".to_owned(), Value::Array(data));
 
             params_insert(
@@ -157,7 +159,6 @@ where
                             ),
                         },
                     }
-                    continue 'mainWhile;
                 }
                 continue 'mainWhile;
             }
