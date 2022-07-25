@@ -128,42 +128,60 @@ where
                 &field_name_formatted,
                 Value::Object(sub_params),
             );
-        } else if let Some(value) = field.next().await {
-            if let Ok(val) = value {
-                if let Ok(convert_str) = str::from_utf8(&val) {
-                    match convert_str.parse::<isize>() {
-                        Ok(number) => params_insert(
-                            &mut params,
-                            field_name,
-                            &field_name_formatted,
-                            Value::Number(Number::from(number)),
-                        ),
-                        Err(_) => match convert_str {
-                            "true" => params_insert(
-                                &mut params,
-                                field_name,
-                                &field_name_formatted,
-                                Value::Bool(true),
-                            ),
-                            "false" => params_insert(
-                                &mut params,
-                                field_name,
-                                &field_name_formatted,
-                                Value::Bool(false),
-                            ),
-                            _ => params_insert(
-                                &mut params,
-                                field_name,
-                                &field_name_formatted,
-                                Value::String(convert_str.to_owned()),
-                            ),
-                        },
+        } else {
+            let mut data: Vec<u8> = Vec::new();
+
+            while let Some(chunk) = field.next().await {
+                match chunk {
+                    Ok(d) => {
+                        let chunk_data: FileData = d.to_vec();
+                        data.reserve_exact(chunk_data.len());
+                        for byte in chunk_data {
+                            data.push(byte);
+                        }
+                    }
+                    Err(_) => {
+                        params.insert(field_name_formatted.to_owned(), Value::Null);
+                        continue 'mainWhile;
                     }
                 }
+            }
+
+            if data.is_empty() {
                 continue 'mainWhile;
             }
 
-            params_insert(&mut params, field_name, &field_name_formatted, Value::Null)
+            if let Ok(convert_str) = str::from_utf8(&data) {
+                match convert_str.parse::<isize>() {
+                    Ok(number) => params_insert(
+                        &mut params,
+                        field_name,
+                        &field_name_formatted,
+                        Value::Number(Number::from(number)),
+                    ),
+                    Err(_) => match convert_str {
+                        "true" => params_insert(
+                            &mut params,
+                            field_name,
+                            &field_name_formatted,
+                            Value::Bool(true),
+                        ),
+                        "false" => params_insert(
+                            &mut params,
+                            field_name,
+                            &field_name_formatted,
+                            Value::Bool(false),
+                        ),
+                        _ => params_insert(
+                            &mut params,
+                            field_name,
+                            &field_name_formatted,
+                            Value::String(convert_str.to_owned()),
+                        ),
+                    },
+                }
+            }
+            continue 'mainWhile;
         }
     }
 
