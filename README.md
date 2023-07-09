@@ -1,3 +1,4 @@
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
 > **Warning**
 > This crate will be no longer maintained
 > See : https://crates.io/crates/actix-form-data
