@@ -1,3 +1,7 @@
+> **Warning**
+> This crate will be no longer maintained
+> See : https://crates.io/crates/actix-form-data
+
 # ActixExtractMultipart
 Functions and structures to handle actix multipart more easily. You can convert the multipart into a struct.
 
